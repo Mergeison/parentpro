@@ -1,266 +1,245 @@
 # 🏫 School Attendance Management System
 
-A comprehensive role-based school attendance and student performance management application built with React.js and modern web technologies.
+A comprehensive multi-tenant school attendance management system with support for multiple schools, real-time attendance tracking, exam results, fee management, and parent-teacher communication.
 
 ## ✨ Features
 
-### 👨‍🏫 **Class Teacher Features**
-- **Take Attendance**: Capture student photos and mark attendance for morning, afternoon, and evening sessions
-- **Upload Exam Results**: Upload weekly, quarterly, half-yearly, and annual exam results
-- **Class Management**: View and manage assigned class information
-- **Photo Capture**: Integrated webcam functionality for attendance verification
+- **Multi-Tenant Architecture**: Support for multiple schools with isolated data
+- **Role-Based Access**: Admin, Teacher, and Parent roles with different permissions
+- **Real-Time Attendance**: Photo-based attendance tracking with time slots
+- **Exam Results**: Comprehensive exam result management and reporting
+- **Fee Management**: Complete fee tracking with installment support
+- **Communication**: Parent-teacher query system
+- **Modern UI**: Responsive design with Tailwind CSS
+- **Secure API**: JWT-based authentication with CORS support
 
-### 🛠️ **Admin Features**
-- **Student Management**: Enroll students, capture photos, generate student IDs
-- **Teacher Management**: Enroll teachers, assign classes and sections
-- **Parent Management**: Enroll parents and link them to their children
-- **Reports & Analytics**: View comprehensive attendance and performance reports
-- **Query Management**: Handle and respond to parent queries
+## 🚀 Quick Start
 
-### 👪 **Parent Features**
-- **View Children**: Access information about enrolled children
-- **Attendance Tracking**: View daily, weekly, and monthly attendance records
-- **Exam Results**: Monitor children's academic performance
-- **Send Queries**: Communicate with teachers and administrators
-- **Download Reports**: Generate and download attendance and result reports
+### Option 1: Automated Setup (Recommended)
 
-## 🚀 Technology Stack
-
-- **Frontend**: React.js 19.1.0
-- **Routing**: React Router DOM 6.8.0
-- **Styling**: Tailwind CSS
-- **Icons**: React Icons
-- **Forms**: React Hook Form
-- **Notifications**: React Toastify
-- **Webcam**: React Webcam
-- **PDF Generation**: HTML2PDF.js
-- **Date Handling**: Date-fns
-- **HTTP Client**: Axios
-
-## 📦 Installation & Setup
-
-### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn
-
-### 1. Clone the Repository
 ```bash
-git clone <repository-url>
+# Clone the repository
+git clone <your-repo-url>
 cd school_manage_attendance_app
+
+# Run the quick start script
+./quick-start.sh
 ```
 
-### 2. Install Dependencies
+This will automatically:
+- Install all dependencies
+- Start the backend server
+- Start the frontend server
+- Open the application in your browser
+
+### Option 2: Manual Setup
+
+#### Backend Setup
 ```bash
+cd backend
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start server
+python main.py
+```
+
+#### Frontend Setup
+```bash
+# Install dependencies
 npm install
-```
 
-### 3. Start the Development Server
-```bash
+# Start development server
 npm start
 ```
 
-The application will be available at `http://localhost:3000`
+## 🌐 Access the Application
 
-## 🔐 Demo Credentials
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
 
-### Admin Access
-- **Email**: admin@school.com
-- **Password**: admin123
+## 👥 Demo Credentials
 
-### Teacher Access
-- **Email**: teacher@school.com
-- **Password**: teacher123
+### St. Mary's High School (stmarys)
+- **Admin**: admin@stmarys.edu / admin123
+- **Teacher**: teacher@stmarys.edu / teacher123
+- **Parent**: parent@stmarys.edu / parent123
 
-### Parent Access
-- **Email**: parent@school.com
-- **Password**: parent123
+### Bright Future Academy (brightfuture)
+- **Admin**: admin@brightfuture.edu / admin123
+- **Teacher**: teacher@brightfuture.edu / teacher123
+- **Parent**: parent@brightfuture.edu / parent123
 
-## 📱 Application Structure
+## 🏗️ Architecture
+
+### Frontend (React)
+- **Framework**: React 18 with Hooks
+- **Styling**: Tailwind CSS
+- **State Management**: React Context API
+- **Routing**: React Router
+- **HTTP Client**: Axios
+
+### Backend (FastAPI)
+- **Framework**: FastAPI
+- **Authentication**: JWT Bearer tokens
+- **CORS**: Configured for cross-origin requests
+- **Multi-tenancy**: School-based data isolation
+- **Documentation**: Auto-generated OpenAPI docs
+
+## 📁 Project Structure
 
 ```
-src/
-├── components/          # Reusable UI components
-│   ├── AttendanceCapture.js
-│   ├── LoginForm.js
-│   ├── Navigation.js
-│   └── ProtectedRoute.js
-├── contexts/           # React contexts
-│   └── AuthContext.js
-├── pages/             # Page components
-│   ├── Dashboard.js
-│   ├── admin/         # Admin-specific pages
-│   ├── teacher/       # Teacher-specific pages
-│   └── parent/        # Parent-specific pages
-├── services/          # API services
-│   └── api.js
-└── App.js            # Main application component
-```
-
-## 🎯 Key Features Explained
-
-### 1. **Role-Based Access Control (RBAC)**
-- Different user interfaces based on user role (Admin, Teacher, Parent)
-- Protected routes with role-based permissions
-- Secure authentication system
-
-### 2. **Photo-Based Attendance**
-- Webcam integration for student photo capture
-- Automatic attendance marking based on photo capture
-- Support for multiple time slots (morning, afternoon, evening)
-
-### 3. **Comprehensive Dashboard**
-- Role-specific dashboards with relevant statistics
-- Real-time data visualization
-- Quick action buttons for common tasks
-
-### 4. **Exam Results Management**
-- Support for multiple exam types
-- Subject-wise score entry
-- Dynamic subject addition/removal
-- Bulk result upload functionality
-
-### 5. **Responsive Design**
-- Mobile-first approach
-- Responsive navigation with mobile menu
-- Optimized for all device sizes
-
-## 🔧 Configuration
-
-### Environment Variables
-Create a `.env` file in the root directory:
-
-```env
-REACT_APP_API_URL=http://localhost:8000/api
-REACT_APP_APP_NAME=School Attendance System
-```
-
-### Backend Integration
-The application is currently using mock data. To integrate with a real backend:
-
-1. Update the API base URL in `src/services/api.js`
-2. Replace mock API functions with actual HTTP requests
-3. Implement proper authentication tokens
-4. Add error handling for network requests
-
-## 📊 Data Models
-
-### Student
-```json
-{
-  "id": "string",
-  "name": "string",
-  "class": "string",
-  "section": "string",
-  "photo_url": "string",
-  "parent_id": "string"
-}
-```
-
-### Teacher
-```json
-{
-  "id": "string",
-  "name": "string",
-  "class": "string",
-  "section": "string",
-  "phone": "string",
-  "photo_url": "string"
-}
-```
-
-### Attendance
-```json
-{
-  "id": "string",
-  "student_id": "string",
-  "date": "yyyy-mm-dd",
-  "morning": true/false,
-  "afternoon": true/false,
-  "evening": true/false,
-  "captured_images": {
-    "morning": "url",
-    "afternoon": "url",
-    "evening": "url"
-  }
-}
-```
-
-### Exam Result
-```json
-{
-  "id": "string",
-  "student_id": "string",
-  "exam_type": "weekly/quarterly/half_yearly/annual",
-  "scores": {
-    "math": 90,
-    "english": 85
-  },
-  "date": "yyyy-mm-dd"
-}
+school_manage_attendance_app/
+├── backend/                 # FastAPI backend
+│   ├── main.py             # Main application file
+│   ├── requirements.txt    # Python dependencies
+│   ├── Dockerfile          # Docker configuration
+│   ├── docker-compose.yml  # Docker Compose setup
+│   └── DEPLOYMENT.md       # Backend deployment guide
+├── src/                    # React frontend
+│   ├── components/         # Reusable components
+│   ├── pages/             # Page components
+│   ├── contexts/          # React contexts
+│   ├── services/          # API services
+│   └── App.js             # Main app component
+├── public/                # Static assets
+├── package.json           # Node.js dependencies
+├── tailwind.config.js     # Tailwind configuration
+├── DEPLOYMENT.md          # Complete deployment guide
+└── quick-start.sh         # Quick start script
 ```
 
 ## 🚀 Deployment
 
-### Build for Production
-```bash
-npm run build
+### Quick Deployment Options
+
+1. **Heroku + Vercel** (Recommended for beginners)
+   - Backend: Deploy to Heroku
+   - Frontend: Deploy to Vercel
+   - See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions
+
+2. **Railway + Netlify**
+   - Backend: Deploy to Railway
+   - Frontend: Deploy to Netlify
+
+3. **Docker Deployment**
+   - Use the provided Dockerfile and docker-compose.yml
+   - Deploy to any cloud platform supporting Docker
+
+### Environment Configuration
+
+#### Backend (.env)
+```env
+FRONTEND_URL=https://your-frontend-domain.com
+SECRET_KEY=your-super-secret-jwt-key-here
+HOST=0.0.0.0
+PORT=8000
 ```
 
-### Deploy to Netlify
-1. Connect your repository to Netlify
-2. Set build command: `npm run build`
-3. Set publish directory: `build`
+#### Frontend (.env)
+```env
+REACT_APP_API_MODE=real
+REACT_APP_BACKEND_URL=https://your-backend-url.com/api
+REACT_APP_API_ENABLED=true
+```
 
-### Deploy to Vercel
-1. Install Vercel CLI: `npm i -g vercel`
-2. Run: `vercel`
+## 🔧 Development
+
+### API Development
+```bash
+cd backend
+python main.py
+# API docs available at http://localhost:8000/docs
+```
+
+### Frontend Development
+```bash
+npm start
+# Development server at http://localhost:3000
+```
+
+### Testing
+```bash
+# Backend tests
+cd backend
+python -m pytest
+
+# Frontend tests
+npm test
+```
+
+## 📊 Features by Role
+
+### Admin
+- School management and configuration
+- Student, teacher, and parent management
+- Fee structure management
+- System reports and analytics
+- Query management
+
+### Teacher
+- Class attendance tracking
+- Exam result upload
+- Student performance monitoring
+- Parent communication
+
+### Parent
+- View children's attendance
+- Check exam results
+- Monitor fee payments
+- Send queries to teachers
 
 ## 🔒 Security Features
 
-- **Protected Routes**: Role-based route protection
-- **Authentication**: JWT token-based authentication
-- **Input Validation**: Form validation and sanitization
-- **Secure Storage**: Local storage for session management
+- JWT-based authentication
+- Role-based access control
+- CORS protection
+- Input validation
+- Secure password handling
+- Multi-tenant data isolation
 
-## 🧪 Testing
+## 📈 Performance
 
-```bash
-# Run tests
-npm test
-
-# Run tests with coverage
-npm test -- --coverage
-```
+- Optimized API responses
+- Efficient database queries
+- Frontend code splitting
+- Image optimization
+- Caching strategies
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit changes: `git commit -am 'Add feature'`
-4. Push to branch: `git push origin feature-name`
+2. Create a feature branch
+3. Make your changes
+4. Add tests
 5. Submit a pull request
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
+- **Documentation**: Check the [DEPLOYMENT.md](DEPLOYMENT.md) for deployment help
+- **Issues**: Create an issue in the repository
+- **API Docs**: Available at `/docs` when backend is running
 
-## 🔄 Future Enhancements
+## 🎯 Roadmap
 
 - [ ] Real-time notifications
-- [ ] SMS/Email integration
-- [ ] Advanced analytics dashboard
 - [ ] Mobile app development
+- [ ] Advanced analytics dashboard
+- [ ] Integration with external systems
 - [ ] Multi-language support
 - [ ] Advanced reporting features
-- [ ] Integration with school management systems
 
 ---
 
-**Built with ❤️ for better school management**
+**Made with ❤️ for better school management**
+# Parentpro

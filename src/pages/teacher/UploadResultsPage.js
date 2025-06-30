@@ -5,17 +5,27 @@ import { toast } from 'react-toastify';
 import { 
   FaSave, 
   FaUserGraduate, 
-  FaSpinner
+  FaSpinner,
+  FaCheck,
+  FaTimes,
+  FaSearch,
+  FaFilter
 } from 'react-icons/fa';
 
 const UploadResultsPage = () => {
   const { user } = useAuth();
-  const [students, setStudents] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
+  const [selectedStudents, setSelectedStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [examType, setExamType] = useState('quarterly');
   const [examDate, setExamDate] = useState(new Date().toISOString().split('T')[0]);
   const [results, setResults] = useState({});
   const [subjects, setSubjects] = useState(['math', 'english', 'science', 'social']);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
 
   const examTypes = [
     { value: 'weekly', label: 'Weekly Test' },
@@ -27,31 +37,79 @@ const UploadResultsPage = () => {
   const loadStudents = useCallback(async () => {
     try {
       setLoading(true);
-      const allStudents = await studentsAPI.getAll();
-      const classStudents = allStudents.filter(
-        s => s.class === user.class && s.section === user.section
-      );
-      setStudents(classStudents);
-      
-      // Initialize results
-      const initialResults = {};
-      classStudents.forEach(student => {
-        initialResults[student.id] = {};
-        subjects.forEach(subject => {
-          initialResults[student.id][subject] = '';
-        });
-      });
-      setResults(initialResults);
+      const students = await studentsAPI.getAll();
+      setAllStudents(students);
     } catch (error) {
       toast.error('Failed to load students');
     } finally {
       setLoading(false);
     }
-  }, [user.class, user.section, subjects]);
+  }, []);
 
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
+
+  // Get unique classes and sections
+  const classes = [...new Set(allStudents.map(s => s.class))].sort();
+  const sections = [...new Set(allStudents.map(s => s.section))].sort();
+
+  // Filter students based on search term, class, and section
+  const filteredStudents = allStudents.filter(student => {
+    const matchesName = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       student.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesClass = !selectedClass || student.class === selectedClass;
+    const matchesSection = !selectedSection || student.section === selectedSection;
+    
+    return matchesName && matchesClass && matchesSection;
+  });
+
+  const handleStudentSelection = (studentId, isSelected) => {
+    if (isSelected) {
+      setSelectedStudents(prev => [...prev, studentId]);
+      // Initialize results for the selected student
+      setResults(prev => ({
+        ...prev,
+        [studentId]: subjects.reduce((acc, subject) => {
+          acc[subject] = '';
+          return acc;
+        }, {})
+      }));
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+      // Remove results for the deselected student
+      setResults(prev => {
+        const { [studentId]: removed, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const selectAllStudents = () => {
+    const allStudentIds = filteredStudents.map(s => s.id);
+    setSelectedStudents(allStudentIds);
+    
+    // Initialize results for all students
+    const initialResults = {};
+    allStudentIds.forEach(studentId => {
+      initialResults[studentId] = subjects.reduce((acc, subject) => {
+        acc[subject] = '';
+        return acc;
+      }, {});
+    });
+    setResults(initialResults);
+  };
+
+  const deselectAllStudents = () => {
+    setSelectedStudents([]);
+    setResults({});
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedClass('');
+    setSelectedSection('');
+  };
 
   const handleResultChange = (studentId, subject, value) => {
     setResults(prev => ({
@@ -64,17 +122,26 @@ const UploadResultsPage = () => {
   };
 
   const validateResults = () => {
-    for (const studentId in results) {
+    if (selectedStudents.length === 0) {
+      toast.error('Please select at least one student');
+      return false;
+    }
+
+    for (const studentId of selectedStudents) {
       const studentResults = results[studentId];
+      if (!studentResults) continue;
+      
       for (const subject of subjects) {
         const score = studentResults[subject];
         if (score === '') {
-          toast.error(`Please enter ${subject} score for all students`);
+          const student = allStudents.find(s => s.id === studentId);
+          toast.error(`Please enter ${subject} score for ${student?.name}`);
           return false;
         }
         const numScore = parseFloat(score);
         if (isNaN(numScore) || numScore < 0 || numScore > 100) {
-          toast.error(`Invalid score for ${subject}. Must be between 0-100`);
+          const student = allStudents.find(s => s.id === studentId);
+          toast.error(`Invalid score for ${student?.name} in ${subject}. Must be between 0-100`);
           return false;
         }
       }
@@ -88,7 +155,10 @@ const UploadResultsPage = () => {
     try {
       setLoading(true);
       
-      for (const studentId in results) {
+      const savedResults = [];
+      const errors = [];
+      
+      for (const studentId of selectedStudents) {
         const studentResults = results[studentId];
         const scores = {};
         
@@ -96,27 +166,37 @@ const UploadResultsPage = () => {
           scores[subject] = parseFloat(studentResults[subject]);
         });
 
-        await examResultsAPI.create({
-          student_id: studentId,
-          exam_type: examType,
-          scores,
-          date: examDate
-        });
+        try {
+          const savedResult = await examResultsAPI.create({
+            student_id: studentId,
+            exam_type: examType,
+            scores,
+            date: examDate
+          });
+          savedResults.push(savedResult);
+        } catch (error) {
+          const student = allStudents.find(s => s.id === studentId);
+          errors.push(`Failed to save results for ${student?.name}: ${error.message}`);
+        }
       }
 
-      toast.success('Results uploaded successfully!');
+      if (savedResults.length > 0) {
+        toast.success(`Successfully uploaded results for ${savedResults.length} student(s)!`);
+        
+        // Reset form
+        setSelectedStudents([]);
+        setResults({});
+        setUploadSuccess(true);
+        setUploadedCount(savedResults.length);
+      }
       
-      // Reset form
-      const initialResults = {};
-      students.forEach(student => {
-        initialResults[student.id] = {};
-        subjects.forEach(subject => {
-          initialResults[student.id][subject] = '';
-        });
-      });
-      setResults(initialResults);
+      if (errors.length > 0) {
+        toast.error(`Some results failed to upload: ${errors.join(', ')}`);
+      }
+      
     } catch (error) {
-      toast.error('Failed to upload results');
+      console.error('Error uploading results:', error);
+      toast.error('Failed to upload results. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -127,7 +207,7 @@ const UploadResultsPage = () => {
     if (newSubject && !subjects.includes(newSubject.toLowerCase())) {
       setSubjects([...subjects, newSubject.toLowerCase()]);
       
-      // Add the new subject to all students' results
+      // Add the new subject to all selected students' results
       setResults(prev => {
         const updated = {};
         for (const studentId in prev) {
@@ -160,10 +240,10 @@ const UploadResultsPage = () => {
     });
   };
 
-  if (loading && students.length === 0) {
+  if (loading && allStudents.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <FaSpinner className="animate-spin h-12 w-12 text-blue-600" />
       </div>
     );
   }
@@ -176,7 +256,7 @@ const UploadResultsPage = () => {
             Upload Exam Results
           </h1>
           <p className="mt-2 text-gray-600">
-            Class {user?.class}-{user?.section} - {students.length} students
+            Total students: {allStudents.length} | Filtered: {filteredStudents.length} | Selected: {selectedStudents.length}
           </p>
         </div>
 
@@ -213,121 +293,300 @@ const UploadResultsPage = () => {
               />
             </div>
             
-            <div className="flex items-end">
-              <button
-                onClick={addSubject}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
-              >
-                Add Subject
-              </button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Selected Students
+              </label>
+              <div className="text-lg font-semibold text-blue-600">
+                {selectedStudents.length} of {filteredStudents.length}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Subjects */}
+        {/* Student Selection */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Subjects</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Select Students
+            </h2>
+            <div className="flex space-x-2">
+              <button
+                onClick={selectAllStudents}
+                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+              >
+                Select All
+              </button>
+              <button
+                onClick={deselectAllStudents}
+                className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
+              >
+                Deselect All
+              </button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="mb-4 space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search students by name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <FaSearch className="absolute left-3 top-3 text-gray-400" />
+            </div>
+
+            {/* Class and Section Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Class
+                </label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Classes</option>
+                  {classes.map(cls => (
+                    <option key={cls} value={cls}>
+                      Class {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Section
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Sections</option>
+                  {sections.map(section => (
+                    <option key={section} value={section}>
+                      Section {section}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={clearFilters}
+                  className="w-full px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Students List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+            {filteredStudents.map((student) => {
+              const isSelected = selectedStudents.includes(student.id);
+              return (
+                <div
+                  key={student.id}
+                  onClick={() => handleStudentSelection(student.id, !isSelected)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                      }`}>
+                        {isSelected && <FaCheck className="w-2 h-2 text-white" />}
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{student.name}</div>
+                        <div className="text-sm text-gray-500">
+                          Class {student.class}-{student.section} | ID: {student.id}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredStudents.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No students found matching the current filters.
+            </div>
+          )}
+        </div>
+
+        {/* Subjects Management */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Subjects</h2>
+            <button
+              onClick={addSubject}
+              className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+            >
+              Add Subject
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
-            {subjects.map(subject => (
+            {subjects.map((subject) => (
               <div
                 key={subject}
-                className="flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-full"
+                className="flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-full"
               >
-                <span className="capitalize">{subject}</span>
-                <button
-                  onClick={() => removeSubject(subject)}
-                  className="ml-2 text-blue-600 hover:text-blue-800"
-                >
-                  ×
-                </button>
+                <span className="text-sm font-medium capitalize">{subject}</span>
+                {subjects.length > 1 && (
+                  <button
+                    onClick={() => removeSubject(subject)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <FaTimes className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Results Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Student Results</h2>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  {subjects.map(subject => (
-                    <th key={subject} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center justify-between">
-                        <span className="capitalize">{subject}</span>
-                        <button
-                          onClick={() => removeSubject(subject)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          ×
-                        </button>
-                      </div>
+        {/* Results Entry */}
+        {selectedStudents.length > 0 && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Enter Results ({selectedStudents.length} students)
+              </h2>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((student, index) => (
-                  <tr key={student.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <FaUserGraduate className="h-6 w-6 text-gray-600" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {student.name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            ID: {student.id}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    {subjects.map(subject => (
-                      <td key={subject} className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={results[student.id]?.[subject] || ''}
-                          onChange={(e) => handleResultChange(student.id, subject, e.target.value)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="0-100"
-                        />
-                      </td>
+                    {subjects.map((subject) => (
+                      <th key={subject} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {subject.charAt(0).toUpperCase() + subject.slice(1)}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {selectedStudents.map((studentId) => {
+                    const student = allStudents.find(s => s.id === studentId);
+                    return (
+                      <tr key={studentId}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                                <FaUserGraduate className="h-5 w-5 text-gray-600" />
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {student?.name}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                Class {student?.class}-{student?.section} | {student?.id}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        {subjects.map((subject) => (
+                          <td key={subject} className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={results[studentId]?.[subject] || ''}
+                              onChange={(e) => handleResultChange(studentId, subject, e.target.value)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0-100"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Save Button */}
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={saveResults}
-            disabled={loading}
-            className="bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-          >
-            {loading ? (
-              <FaSpinner className="animate-spin mr-2" />
-            ) : (
-              <FaSave className="mr-2" />
-            )}
-            Upload Results
-          </button>
-        </div>
+        {selectedStudents.length > 0 && (
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={saveResults}
+              disabled={loading}
+              className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <FaSpinner className="animate-spin mr-2" />
+              ) : (
+                <FaSave className="mr-2" />
+              )}
+              Upload Results
+            </button>
+          </div>
+        )}
+
+        {/* Success Modal */}
+        {uploadSuccess && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <div className="mt-3 text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                  <FaCheck className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Upload Successful!
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Results have been successfully uploaded for {uploadedCount} student(s).
+                </p>
+                
+                <div className="flex justify-center space-x-3">
+                  <button
+                    onClick={() => {
+                      setUploadSuccess(false);
+                      setUploadedCount(0);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Continue
+                  </button>
+                  <button
+                    onClick={() => {
+                      setUploadSuccess(false);
+                      setUploadedCount(0);
+                      // Navigate to results page or refresh
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                  >
+                    View Results
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

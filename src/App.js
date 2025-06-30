@@ -17,6 +17,7 @@ import Dashboard from './pages/Dashboard';
 import StudentsPage from './pages/admin/StudentsPage';
 import TeachersPage from './pages/admin/TeachersPage';
 import ParentsPage from './pages/admin/ParentsPage';
+import FeesPage from './pages/admin/FeesPage';
 import ReportsPage from './pages/admin/ReportsPage';
 import QueriesPage from './pages/admin/QueriesPage';
 
@@ -30,6 +31,7 @@ import MyChildrenPage from './pages/parent/MyChildrenPage';
 import AttendancePage from './pages/parent/AttendancePage';
 import ResultsPage from './pages/parent/ResultsPage';
 import SendQueryPage from './pages/parent/SendQueryPage';
+import MyQueriesPage from './pages/parent/MyQueriesPage';
 
 // Shared Pages
 import UnauthorizedPage from './pages/UnauthorizedPage';
@@ -62,7 +64,7 @@ function App() {
             
             {/* Admin Routes */}
             <Route 
-              path="/students" 
+              path="/admin/students" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <div>
@@ -74,7 +76,7 @@ function App() {
             />
             
             <Route 
-              path="/teachers" 
+              path="/admin/teachers" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <div>
@@ -86,7 +88,7 @@ function App() {
             />
             
             <Route 
-              path="/parents" 
+              path="/admin/parents" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <div>
@@ -98,7 +100,19 @@ function App() {
             />
             
             <Route 
-              path="/reports" 
+              path="/admin/fees" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <div>
+                    <Navigation />
+                    <FeesPage />
+                  </div>
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/admin/reports" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <div>
@@ -110,7 +124,7 @@ function App() {
             />
             
             <Route 
-              path="/queries" 
+              path="/admin/queries" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <div>
@@ -123,7 +137,7 @@ function App() {
             
             {/* Teacher Routes */}
             <Route 
-              path="/take-attendance" 
+              path="/teacher/take-attendance" 
               element={
                 <ProtectedRoute allowedRoles={['teacher']}>
                   <div>
@@ -135,7 +149,7 @@ function App() {
             />
             
             <Route 
-              path="/upload-results" 
+              path="/teacher/upload-results" 
               element={
                 <ProtectedRoute allowedRoles={['teacher']}>
                   <div>
@@ -147,7 +161,7 @@ function App() {
             />
             
             <Route 
-              path="/my-class" 
+              path="/teacher/my-class" 
               element={
                 <ProtectedRoute allowedRoles={['teacher']}>
                   <div>
@@ -160,7 +174,7 @@ function App() {
             
             {/* Parent Routes */}
             <Route 
-              path="/my-children" 
+              path="/parent/my-children" 
               element={
                 <ProtectedRoute allowedRoles={['parent']}>
                   <div>
@@ -172,7 +186,7 @@ function App() {
             />
             
             <Route 
-              path="/attendance" 
+              path="/parent/attendance" 
               element={
                 <ProtectedRoute allowedRoles={['parent']}>
                   <div>
@@ -184,7 +198,7 @@ function App() {
             />
             
             <Route 
-              path="/results" 
+              path="/parent/results" 
               element={
                 <ProtectedRoute allowedRoles={['parent']}>
                   <div>
@@ -196,7 +210,7 @@ function App() {
             />
             
             <Route 
-              path="/send-query" 
+              path="/parent/send-query" 
               element={
                 <ProtectedRoute allowedRoles={['parent']}>
                   <div>
@@ -206,6 +220,21 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            
+            <Route 
+              path="/parent/my-queries" 
+              element={
+                <ProtectedRoute allowedRoles={['parent']}>
+                  <div>
+                    <Navigation />
+                    <MyQueriesPage />
+                  </div>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
       </Router>

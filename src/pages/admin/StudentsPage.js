@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FaUserGraduate, FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaCamera, FaUpload, FaTimes } from 'react-icons/fa';
+import { FaUserGraduate, FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaCamera, FaUpload, FaTimes, FaMoneyBillWave } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import Webcam from 'react-webcam';
 import { studentsAPI, parentsAPI } from '../../services/api';
@@ -606,6 +606,13 @@ const StudentsPage = () => {
                       >
                         <FaEdit className="inline mr-1" />
                         Edit
+                      </button>
+                      <button
+                        onClick={() => window.location.href = `/admin/fees?student=${student.id}`}
+                        className="text-green-600 hover:text-green-900 mr-4"
+                      >
+                        <FaMoneyBillWave className="inline mr-1" />
+                        Fees
                       </button>
                       <button
                         onClick={() => handleDelete(student.id)}

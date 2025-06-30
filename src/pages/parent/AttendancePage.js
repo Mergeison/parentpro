@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaCalendarCheck, FaCalendarAlt, FaFilter, FaDownload, FaEye, FaChartBar, FaUser, FaClock, FaCheck, FaTimes, FaSpinner } from 'react-icons/fa';
+import { FaCalendarCheck, FaCalendarAlt, FaFilter, FaDownload, FaEye, FaChartBar, FaUser, FaClock, FaCheck, FaTimes, FaSpinner, FaImage } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { studentsAPI, attendanceAPI } from '../../services/api';
@@ -9,6 +9,7 @@ const AttendancePage = () => {
   const [children, setChildren] = useState([]);
   const [selectedChild, setSelectedChild] = useState('');
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [groupedRecords, setGroupedRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -24,6 +25,12 @@ const AttendancePage = () => {
       loadAttendanceRecords();
     }
   }, [selectedChild, filterDate, filterMonth, viewMode]);
+
+  useEffect(() => {
+    // Group attendance records by date
+    const grouped = groupRecordsByDate(attendanceRecords);
+    setGroupedRecords(grouped);
+  }, [attendanceRecords]);
 
   const loadChildren = async () => {
     try {
@@ -68,27 +75,60 @@ const AttendancePage = () => {
     }
   };
 
+  const groupRecordsByDate = (records) => {
+    const grouped = {};
+    
+    records.forEach(record => {
+      const date = record.date;
+      if (!grouped[date]) {
+        grouped[date] = {
+          date: date,
+          morning: { status: null, photo: null },
+          afternoon: { status: null, photo: null },
+          evening: { status: null, photo: null }
+        };
+      }
+      
+      // Update the time slot data
+      if (record.morning !== undefined) {
+        grouped[date].morning.status = record.morning;
+        grouped[date].morning.photo = record.captured_images?.morning || null;
+      }
+      if (record.afternoon !== undefined) {
+        grouped[date].afternoon.status = record.afternoon;
+        grouped[date].afternoon.photo = record.captured_images?.afternoon || null;
+      }
+      if (record.evening !== undefined) {
+        grouped[date].evening.status = record.evening;
+        grouped[date].evening.photo = record.captured_images?.evening || null;
+      }
+    });
+    
+    // Convert to array and sort by date
+    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
   const getAttendanceStats = () => {
-    if (attendanceRecords.length === 0) return { present: 0, absent: 0, total: 0, percentage: 0 };
+    if (groupedRecords.length === 0) return { present: 0, absent: 0, total: 0, percentage: 0 };
 
     let present = 0;
     let absent = 0;
     let total = 0;
 
-    attendanceRecords.forEach(record => {
-      if (record.morning !== undefined) {
+    groupedRecords.forEach(record => {
+      if (record.morning.status !== null) {
         total++;
-        if (record.morning) present++;
+        if (record.morning.status) present++;
         else absent++;
       }
-      if (record.afternoon !== undefined) {
+      if (record.afternoon.status !== null) {
         total++;
-        if (record.afternoon) present++;
+        if (record.afternoon.status) present++;
         else absent++;
       }
-      if (record.evening !== undefined) {
+      if (record.evening.status !== null) {
         total++;
-        if (record.evening) present++;
+        if (record.evening.status) present++;
         else absent++;
       }
     });
@@ -101,8 +141,7 @@ const AttendancePage = () => {
     };
   };
 
-  const getAttendanceStatus = (record, timeSlot) => {
-    const status = record[timeSlot];
+  const getAttendanceStatus = (status) => {
     if (status === true) return 'present';
     if (status === false) return 'absent';
     return 'not-marked';
@@ -138,11 +177,11 @@ const AttendancePage = () => {
       ['Period', `${formatDate(filterDate)} - ${viewMode}`],
       [''],
       ['Date', 'Morning', 'Afternoon', 'Evening', 'Status'],
-      ...attendanceRecords.map(record => [
+      ...groupedRecords.map(record => [
         formatDate(record.date),
-        record.morning ? 'Present' : record.morning === false ? 'Absent' : 'Not Marked',
-        record.afternoon ? 'Present' : record.afternoon === false ? 'Absent' : 'Not Marked',
-        record.evening ? 'Present' : record.evening === false ? 'Absent' : 'Not Marked',
+        record.morning.status ? 'Present' : record.morning.status === false ? 'Absent' : 'Not Marked',
+        record.afternoon.status ? 'Present' : record.afternoon.status === false ? 'Absent' : 'Not Marked',
+        record.evening.status ? 'Present' : record.evening.status === false ? 'Absent' : 'Not Marked',
         'Completed'
       ]),
       [''],
@@ -358,7 +397,7 @@ const AttendancePage = () => {
               <FaSpinner className="animate-spin h-8 w-8 text-blue-600 mr-2" />
               <span className="text-gray-600">Loading attendance records...</span>
             </div>
-          ) : attendanceRecords.length > 0 ? (
+          ) : groupedRecords.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -375,50 +414,64 @@ const AttendancePage = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Evening
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Photos
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {attendanceRecords.map((record) => (
-                    <tr key={record.id} className="hover:bg-gray-50">
+                  {groupedRecords.map((record) => (
+                    <tr key={record.date} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {formatDate(record.date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <AttendanceStatus status={getAttendanceStatus(record, 'morning')} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <AttendanceStatus status={getAttendanceStatus(record, 'afternoon')} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <AttendanceStatus status={getAttendanceStatus(record, 'evening')} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex space-x-2">
-                          {record.captured_images?.morning && (
+                        <div className="flex items-center space-x-2">
+                          <AttendanceStatus status={getAttendanceStatus(record.morning.status)} />
+                          {record.morning.photo && (
                             <button
-                              onClick={() => setShowPhoto({ image: record.captured_images.morning, time: 'Morning', date: record.date })}
+                              onClick={() => setShowPhoto({ 
+                                image: record.morning.photo, 
+                                time: 'Morning', 
+                                date: record.date 
+                              })}
                               className="text-blue-600 hover:text-blue-800"
+                              title="View Morning Photo"
                             >
-                              <FaEye className="h-4 w-4" />
+                              <FaImage className="h-4 w-4" />
                             </button>
                           )}
-                          {record.captured_images?.afternoon && (
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <AttendanceStatus status={getAttendanceStatus(record.afternoon.status)} />
+                          {record.afternoon.photo && (
                             <button
-                              onClick={() => setShowPhoto({ image: record.captured_images.afternoon, time: 'Afternoon', date: record.date })}
+                              onClick={() => setShowPhoto({ 
+                                image: record.afternoon.photo, 
+                                time: 'Afternoon', 
+                                date: record.date 
+                              })}
                               className="text-blue-600 hover:text-blue-800"
+                              title="View Afternoon Photo"
                             >
-                              <FaEye className="h-4 w-4" />
+                              <FaImage className="h-4 w-4" />
                             </button>
                           )}
-                          {record.captured_images?.evening && (
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <AttendanceStatus status={getAttendanceStatus(record.evening.status)} />
+                          {record.evening.photo && (
                             <button
-                              onClick={() => setShowPhoto({ image: record.captured_images.evening, time: 'Evening', date: record.date })}
+                              onClick={() => setShowPhoto({ 
+                                image: record.evening.photo, 
+                                time: 'Evening', 
+                                date: record.date 
+                              })}
                               className="text-blue-600 hover:text-blue-800"
+                              title="View Evening Photo"
                             >
-                              <FaEye className="h-4 w-4" />
+                              <FaImage className="h-4 w-4" />
                             </button>
                           )}
                         </div>
