@@ -15,27 +15,10 @@ load_dotenv()
 
 app = FastAPI(title="Multi-School Attendance API", version="2.0.0")
 
-# CORS middleware - allow both development and production origins
-allowed_origins = [
-    "http://localhost:3000",
-    "https://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://127.0.0.1:3000"
-]
-
-# Add production origins from environment variable
-frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
-    allowed_origins.append(frontend_url)
-
-additional_origins_env = os.getenv("ADDITIONAL_ORIGINS")
-if additional_origins_env:
-    additional_origins = additional_origins_env.split(",")
-    allowed_origins.extend(additional_origins)
-
+# CORS middleware - allow all origins for debugging
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],  # Allow all origins for debugging
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -213,7 +196,14 @@ class TeacherCreate(BaseModel):
 class ParentCreate(BaseModel):
     father_name: str
     mother_name: str
-    phone: str
+    father_phone: Optional[str] = ""
+    mother_phone: Optional[str] = ""
+    father_email: Optional[str] = ""
+    mother_email: Optional[str] = ""
+    address: Optional[str] = ""
+    emergency_contact: Optional[str] = ""
+    emergency_phone: Optional[str] = ""
+    children_ids: Optional[List[str]] = []
 
 class AttendanceCreate(BaseModel):
     student_id: str
@@ -384,8 +374,14 @@ async def create_parent(
         "id": f"parent{len(mock_data['tenants'][tenant_id]['parents']) + 1}",
         "father_name": parent.father_name,
         "mother_name": parent.mother_name,
-        "children_ids": [],
-        "phone": parent.phone,
+        "father_phone": parent.father_phone,
+        "mother_phone": parent.mother_phone,
+        "father_email": parent.father_email,
+        "mother_email": parent.mother_email,
+        "address": parent.address,
+        "emergency_contact": parent.emergency_contact,
+        "emergency_phone": parent.emergency_phone,
+        "children_ids": parent.children_ids,
         "school_id": tenant_id
     }
     mock_data["tenants"][tenant_id]["parents"].append(new_parent)

@@ -3,14 +3,16 @@ import axios from 'axios';
 // Configuration
 const API_CONFIG = {
   // Set to 'mock' for development with mock data, 'real' for production with backend
-  MODE: process.env.REACT_APP_API_MODE || 'mock',
-  // Backend URL - update this with your deployed backend URL
-  BACKEND_URL: process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000/api',
+  MODE: 'real',
+  // Backend URL - hardcoded to deployed backend
+  BACKEND_URL: 'http://44.203.99.138:8000/api',
   // Enable/disable API calls
-  ENABLED: process.env.REACT_APP_API_ENABLED !== 'false'
+  ENABLED: true
 };
 
 console.log('API Configuration:', API_CONFIG);
+console.log('Environment REACT_APP_BACKEND_URL:', process.env.REACT_APP_BACKEND_URL);
+console.log('Environment REACT_APP_API_MODE:', process.env.REACT_APP_API_MODE);
 
 // Multi-tenant mock data for demonstration
 const mockData = {
@@ -159,7 +161,20 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Get current school domain from localStorage
 const getCurrentSchoolDomain = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  return user.school?.domain || 'stmarys'; // Default to first school
+  const school = JSON.parse(localStorage.getItem('school') || '{}');
+  
+  // Check if school domain is in user object first
+  if (user.school?.domain) {
+    return user.school.domain;
+  }
+  
+  // Check if school domain is in separate school object
+  if (school.domain) {
+    return school.domain;
+  }
+  
+  // Default fallback
+  return 'stmarys';
 };
 
 // API base configuration with tenant support
@@ -167,6 +182,7 @@ const createApiInstance = () => {
   const schoolDomain = getCurrentSchoolDomain();
   
   console.log(`🏫 Creating API instance for school domain: ${schoolDomain}`);
+  console.log(`🌐 Using BACKEND_URL: ${API_CONFIG.BACKEND_URL}`);
   
   const api = axios.create({
     baseURL: API_CONFIG.BACKEND_URL,
@@ -316,91 +332,71 @@ export const authAPI = {
 
 export const studentsAPI = {
   getAll: async () => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    return mockData.tenants[school.id].students;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get('/students');
+        return response.data;
+      }
+    );
   },
   
   getById: async (id) => {
-    await delay(200);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    const student = mockData.tenants[school.id].students.find(s => s.id === id);
-    if (!student) throw new Error('Student not found');
-    return student;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get(`/students/${id}`);
+        return response.data;
+      }
+    );
   },
   
   getByParent: async (parentId) => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    console.log('getByParent called with parentId:', parentId, 'schoolDomain:', schoolDomain);
-    
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    console.log('Found school:', school);
-    
-    // First, get the parent user to find their children
-    const mockUsers = {
-      school1: {
-        'admin@stmarys.edu': { id: '1', name: 'Admin User', role: 'admin', password: 'admin123', school_id: 'school1' },
-        'teacher@stmarys.edu': { id: '2', name: 'John Teacher', role: 'teacher', class: '10', section: 'A', password: 'teacher123', school_id: 'school1' },
-        'parent@stmarys.edu': { id: '3', name: 'Parent User', role: 'parent', children: ['student1', 'student2'], password: 'parent123', school_id: 'school1' }
-      },
-      school2: {
-        'admin@brightfuture.edu': { id: '4', name: 'Admin User', role: 'admin', password: 'admin123', school_id: 'school2' },
-        'teacher@brightfuture.edu': { id: '5', name: 'Sarah Teacher', role: 'teacher', class: '8', section: 'A', password: 'teacher123', school_id: 'school2' },
-        'parent@brightfuture.edu': { id: '6', name: 'Parent User', role: 'parent', children: ['student4'], password: 'parent123', school_id: 'school2' }
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get(`/students?parent_id=${parentId}`);
+        return response.data;
       }
-    };
-    
-    const schoolUsers = mockUsers[school.id] || {};
-    console.log('School users:', schoolUsers);
-    
-    const parentUser = Object.values(schoolUsers).find(user => user.id === parentId && user.role === 'parent');
-    console.log('Found parent user:', parentUser);
-    
-    if (!parentUser || !parentUser.children) {
-      console.log('No parent user found or no children array');
-      return [];
-    }
-    
-    // Return students whose IDs are in the parent's children array
-    const students = mockData.tenants[school.id].students.filter(s => parentUser.children.includes(s.id));
-    console.log('Found students for parent:', students);
-    return students;
+    );
   },
   
   create: async (studentData) => {
-    await delay(400);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    const newStudent = {
-      id: `student${Date.now()}`,
-      ...studentData,
-      photo_url: '',
-      school_id: school.id
-    };
-    mockData.tenants[school.id].students.push(newStudent);
-    return newStudent;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.post('/students', studentData);
+        return response.data;
+      }
+    );
   },
   
   update: async (id, updates) => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    const index = mockData.tenants[school.id].students.findIndex(s => s.id === id);
-    if (index === -1) throw new Error('Student not found');
-    mockData.tenants[school.id].students[index] = { ...mockData.tenants[school.id].students[index], ...updates };
-    return mockData.tenants[school.id].students[index];
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.put(`/students/${id}`, updates);
+        return response.data;
+      }
+    );
   }
 };
 
 export const teachersAPI = {
   getAll: async () => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    return mockData.tenants[school.id].teachers;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get('/teachers');
+        return response.data;
+      },
+      async () => {
+        await delay(300);
+        const schoolDomain = getCurrentSchoolDomain();
+        const school = mockData.schools.find(s => s.domain === schoolDomain);
+        return mockData.tenants[school.id].teachers;
+      }
+    );
   },
   
   create: async (teacherData) => {
@@ -420,33 +416,47 @@ export const teachersAPI = {
 
 export const parentsAPI = {
   getAll: async () => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    return mockData.tenants[school.id].parents;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get('/parents');
+        return response.data;
+      },
+      async () => {
+        await delay(300);
+        const schoolDomain = getCurrentSchoolDomain();
+        const school = mockData.schools.find(s => s.domain === schoolDomain);
+        return mockData.tenants[school.id].parents;
+      }
+    );
   },
   
   create: async (parentData) => {
-    await delay(400);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    const newParent = {
-      id: `parent${Date.now()}`,
-      ...parentData,
-      children_ids: [],
-      school_id: school.id
-    };
-    mockData.tenants[school.id].parents.push(newParent);
-    return newParent;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.post('/parents', parentData);
+        return response.data;
+      }
+    );
   }
 };
 
 export const attendanceAPI = {
   getByStudent: async (studentId, range = 'monthly') => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    return mockData.tenants[school.id].attendance.filter(a => a.student_id === studentId);
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get(`/attendance/student/${studentId}?range=${range}`);
+        return response.data;
+      },
+      async () => {
+        await delay(300);
+        const schoolDomain = getCurrentSchoolDomain();
+        const school = mockData.schools.find(s => s.domain === schoolDomain);
+        return mockData.tenants[school.id].attendance.filter(a => a.student_id === studentId);
+      }
+    );
   },
   
   getByClass: async (classId, section, date) => {
@@ -484,10 +494,19 @@ export const attendanceAPI = {
 
 export const examResultsAPI = {
   getAll: async () => {
-    await delay(300);
-    const schoolDomain = getCurrentSchoolDomain();
-    const school = mockData.schools.find(s => s.domain === schoolDomain);
-    return mockData.tenants[school.id].examResults;
+    return makeApiCall(
+      async () => {
+        const api = createApiInstance();
+        const response = await api.get('/exam-results');
+        return response.data;
+      },
+      async () => {
+        await delay(300);
+        const schoolDomain = getCurrentSchoolDomain();
+        const school = mockData.schools.find(s => s.domain === schoolDomain);
+        return mockData.tenants[school.id].examResults;
+      }
+    );
   },
   
   getByStudent: async (studentId) => {
