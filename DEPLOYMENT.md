@@ -333,7 +333,7 @@ curl -I https://your-backend-url.com/
 npm run build
 
 # Test API locally
-curl http://44.203.99.138:8000/api/schools
+curl http://localhost:8000/api/schools
 
 # Check environment variables
 echo $FRONTEND_URL

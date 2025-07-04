@@ -5,7 +5,7 @@ const API_CONFIG = {
   // Set to 'mock' for development with mock data, 'real' for production with backend
   MODE: 'real',
   // Backend URL - hardcoded to deployed backend
-  BACKEND_URL: 'http://44.203.99.138:8000/api',
+  BACKEND_URL: 'http://localhost:8000/api',
   // Enable/disable API calls
   ENABLED: true
 };
@@ -362,10 +362,48 @@ export const studentsAPI = {
   },
   
   create: async (studentData) => {
+    console.log('Frontend sending student data:', { ...studentData, photo_url: studentData.photo_url ? `${studentData.photo_url.substring(0, 50)}...` : 'None' });
     return makeApiCall(
       async () => {
         const api = createApiInstance();
-        const response = await api.post('/students', studentData);
+        
+        // Check if we have a base64 image to convert to file
+        let formData = new FormData();
+        
+        // Add all text fields
+        formData.append('name', studentData.name);
+        formData.append('class_name', studentData.class_name);
+        formData.append('section', studentData.section);
+        formData.append('parent_id', studentData.parent_id);
+        formData.append('email', studentData.email || '');
+        formData.append('phone', studentData.phone || '');
+        formData.append('address', studentData.address || '');
+        formData.append('date_of_birth', studentData.date_of_birth || '');
+        
+        // Handle image upload
+        if (studentData.photo_url) {
+          if (studentData.photo_url instanceof File) {
+            // Direct file upload
+            formData.append('file', studentData.photo_url);
+          } else if (studentData.photo_url.startsWith('data:image/')) {
+            // Convert base64 to file
+            const response = await fetch(studentData.photo_url);
+            const blob = await response.blob();
+            const file = new File([blob], 'student_photo.jpg', { type: 'image/jpeg' });
+            formData.append('file', file);
+          } else {
+            // If it's already a URL, pass it as photo_url
+            formData.append('photo_url', studentData.photo_url);
+          }
+        }
+        
+        const response = await api.post('/students', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        console.log('Frontend received response:', { ...response.data, photo_url: response.data.photo_url ? `${response.data.photo_url.substring(0, 50)}...` : 'None' });
         return response.data;
       }
     );

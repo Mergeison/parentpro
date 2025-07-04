@@ -3,6 +3,7 @@ import { FaUserGraduate, FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaCamera, 
 import { toast } from 'react-toastify';
 import Webcam from 'react-webcam';
 import { studentsAPI, parentsAPI } from '../../services/api';
+import axios from 'axios';
 
 const StudentsPage = () => {
   const [students, setStudents] = useState([]);
@@ -14,8 +15,9 @@ const StudentsPage = () => {
   const [filterClass, setFilterClass] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [capturedImage, setCapturedImage] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
-  const [photoSource, setPhotoSource] = useState(''); // 'camera' or 'upload'
+  const [photoSource, setPhotoSource] = useState(''); // 'camera', 'upload', or 'existing'
 
   const webcamRef = useRef(null);
 
@@ -65,12 +67,17 @@ const StudentsPage = () => {
 
   const retakePhoto = () => {
     setCapturedImage(null);
+    setUploadedFile(null);
     setPhotoSource('');
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Store the actual file for upload
+      setUploadedFile(file);
+      
+      // Also create a preview URL for display
       const reader = new FileReader();
       reader.onload = (event) => {
         setCapturedImage(event.target.result);
@@ -82,32 +89,51 @@ const StudentsPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Check if photo is captured
-    if (!capturedImage) {
+    console.log('Enroll Student button clicked');
+
+    // Check if photo is captured or uploaded
+    if (!capturedImage && !uploadedFile) {
       toast.error('Please capture or upload a student photo before enrolling');
       return;
     }
 
-    try {
-      const studentData = {
-        ...formData,
-        photo_url: capturedImage // Store the base64 image data
-      };
+    const formDataToSend = new FormData();
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('class_name', formData.class_name);
+    formDataToSend.append('section', formData.section);
+    formDataToSend.append('parent_id', formData.parent_id);
+    formDataToSend.append('email', formData.email || '');
+    formDataToSend.append('phone', formData.phone || '');
+    formDataToSend.append('address', formData.address || '');
+    formDataToSend.append('date_of_birth', formData.date_of_birth || '');
 
-      if (editingStudent) {
-        await studentsAPI.update(editingStudent.id, studentData);
-        toast.success('Student updated successfully!');
-      } else {
-        await studentsAPI.create(studentData);
-        toast.success('Student enrolled successfully!');
-      }
+    // Handle the photo
+    if (uploadedFile) {
+      formDataToSend.append('file', uploadedFile);
+    } else if (capturedImage && capturedImage.startsWith('data:image/')) {
+      // Convert base64 to File
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
+      const file = new File([blob], 'student_photo.jpg', { type: 'image/jpeg' });
+      formDataToSend.append('file', file);
+    }
+
+    try {
+      await axios.post('http://localhost:8000/api/students', formDataToSend, {
+        headers: {
+          // Do NOT set 'Content-Type'! Let the browser set it.
+          'Authorization': 'Bearer mock-jwt-token',
+          'X-School-Domain': 'brightfuture',
+        },
+      });
+      toast.success('Student enrolled successfully!');
       setShowForm(false);
       setEditingStudent(null);
       resetForm();
       loadData();
     } catch (error) {
       toast.error('Failed to save student');
+      console.error('API error:', error);
     }
   };
 
@@ -153,6 +179,7 @@ const StudentsPage = () => {
       photo_url: ''
     });
     setCapturedImage(null);
+    setUploadedFile(null);
     setPhotoSource('');
     setShowCamera(false);
   };
@@ -482,7 +509,7 @@ const StudentsPage = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!capturedImage}
+                  disabled={!capturedImage && !uploadedFile}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingStudent ? 'Update Student' : 'Enroll Student'}

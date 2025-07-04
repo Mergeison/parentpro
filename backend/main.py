@@ -1,19 +1,27 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Header
+from fastapi import FastAPI, HTTPException, Depends, status, Header, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
 from datetime import datetime, date
 import json
 import os
+import base64
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+# Create uploads directory if it doesn't exist
+os.makedirs("uploads/student_photos", exist_ok=True)
+
 app = FastAPI(title="Multi-School Attendance API", version="2.0.0")
+
+# Serve static files (for uploaded images)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # CORS middleware - allow all origins for debugging
 app.add_middleware(
@@ -27,7 +35,7 @@ app.add_middleware(
 # Security
 security = HTTPBearer()
 
-# Multi-tenant mock database
+# Mock data structure
 mock_data = {
     "schools": [
         {
@@ -45,7 +53,7 @@ mock_data = {
             }
         },
         {
-            "id": "school2", 
+            "id": "school2",
             "name": "Bright Future Academy",
             "domain": "brightfuture",
             "address": "456 Learning Ave, Town",
@@ -62,28 +70,28 @@ mock_data = {
     "tenants": {
         "school1": {
             "students": [
-                {"id": "student1", "name": "Alice Johnson", "class": "10", "section": "A", "photo_url": "", "parent_id": "parent1", "school_id": "school1"},
-                {"id": "student2", "name": "Bob Smith", "class": "10", "section": "A", "photo_url": "", "parent_id": "parent1", "school_id": "school1"},
-                {"id": "student3", "name": "Charlie Brown", "class": "9", "section": "B", "photo_url": "", "parent_id": "parent2", "school_id": "school1"}
+                { "id": "student1", "name": "Alice Johnson", "class": "10", "section": "A", "photo_url": "", "parent_id": "parent1", "school_id": "school1" },
+                { "id": "student2", "name": "Bob Smith", "class": "10", "section": "A", "photo_url": "", "parent_id": "parent1", "school_id": "school1" },
+                { "id": "student3", "name": "Charlie Brown", "class": "9", "section": "B", "photo_url": "", "parent_id": "parent2", "school_id": "school1" }
             ],
             "teachers": [
-                {"id": "teacher1", "name": "John Teacher", "class": "10", "section": "A", "phone": "1234567890", "photo_url": "", "school_id": "school1"},
-                {"id": "teacher2", "name": "Jane Teacher", "class": "9", "section": "B", "phone": "0987654321", "photo_url": "", "school_id": "school1"}
+                { "id": "teacher1", "name": "John Teacher", "class": "10", "section": "A", "phone": "1234567890", "photo_url": "", "school_id": "school1" },
+                { "id": "teacher2", "name": "Jane Teacher", "class": "9", "section": "B", "phone": "0987654321", "photo_url": "", "school_id": "school1" }
             ],
             "parents": [
-                {"id": "parent1", "father_name": "John Parent", "mother_name": "Mary Parent", "children_ids": ["student1", "student2"], "phone": "5551234567", "school_id": "school1"},
-                {"id": "parent2", "father_name": "Bob Parent", "mother_name": "Alice Parent", "children_ids": ["student3"], "phone": "5559876543", "school_id": "school1"}
+                { "id": "parent1", "father_name": "John Parent", "mother_name": "Mary Parent", "children_ids": ["student1", "student2"], "phone": "5551234567", "school_id": "school1" },
+                { "id": "parent2", "father_name": "Bob Parent", "mother_name": "Alice Parent", "children_ids": ["student3"], "phone": "5559876543", "school_id": "school1" }
             ],
             "attendance": [
-                {"id": "att1", "student_id": "student1", "date": "2024-01-15", "morning": True, "afternoon": True, "evening": False, "captured_images": {"morning": "", "afternoon": "", "evening": ""}, "school_id": "school1"},
-                {"id": "att2", "student_id": "student2", "date": "2024-01-15", "morning": True, "afternoon": False, "evening": True, "captured_images": {"morning": "", "afternoon": "", "evening": ""}, "school_id": "school1"}
+                { "id": "att1", "student_id": "student1", "date": "2024-01-15", "morning": True, "afternoon": True, "evening": False, "captured_images": { "morning": "", "afternoon": "", "evening": "" }, "school_id": "school1" },
+                { "id": "att2", "student_id": "student2", "date": "2024-01-15", "morning": True, "afternoon": False, "evening": True, "captured_images": { "morning": "", "afternoon": "", "evening": "" }, "school_id": "school1" }
             ],
             "exam_results": [
-                {"id": "exam1", "student_id": "student1", "exam_type": "quarterly", "scores": {"math": 90, "english": 85, "science": 88}, "date": "2024-01-10", "school_id": "school1"},
-                {"id": "exam2", "student_id": "student2", "exam_type": "quarterly", "scores": {"math": 78, "english": 92, "science": 85}, "date": "2024-01-10", "school_id": "school1"}
+                { "id": "exam1", "student_id": "student1", "exam_type": "quarterly", "scores": { "math": 90, "english": 85, "science": 88 }, "date": "2024-01-10", "school_id": "school1" },
+                { "id": "exam2", "student_id": "student2", "exam_type": "quarterly", "scores": { "math": 78, "english": 92, "science": 85 }, "date": "2024-01-10", "school_id": "school1" }
             ],
             "queries": [
-                {"id": "query1", "parent_id": "parent1", "student_id": "student1", "message": "When is the next parent-teacher meeting?", "status": "pending", "date": "2024-01-14", "school_id": "school1"}
+                { "id": "query1", "parent_id": "parent1", "student_id": "student1", "message": "When is the next parent-teacher meeting?", "status": "pending", "date": "2024-01-14", "school_id": "school1" }
             ],
             "fees": [
                 {
@@ -97,10 +105,10 @@ mock_data = {
                     "status": "partial",
                     "school_id": "school1",
                     "installments": [
-                        {"id": "inst1", "amount": 15000, "due_date": "2024-06-30", "paid_date": "2024-06-15", "status": "paid"},
-                        {"id": "inst2", "amount": 15000, "due_date": "2024-09-30", "paid_date": "2024-09-20", "status": "paid"},
-                        {"id": "inst3", "amount": 10000, "due_date": "2024-12-31", "paid_date": None, "status": "pending"},
-                        {"id": "inst4", "amount": 10000, "due_date": "2025-03-31", "paid_date": None, "status": "pending"}
+                        { "id": "inst1", "amount": 15000, "due_date": "2024-06-30", "paid_date": "2024-06-15", "status": "paid" },
+                        { "id": "inst2", "amount": 15000, "due_date": "2024-09-30", "paid_date": "2024-09-20", "status": "paid" },
+                        { "id": "inst3", "amount": 10000, "due_date": "2024-12-31", "paid_date": None, "status": "pending" },
+                        { "id": "inst4", "amount": 10000, "due_date": "2025-03-31", "paid_date": None, "status": "pending" }
                     ]
                 },
                 {
@@ -114,37 +122,37 @@ mock_data = {
                     "status": "paid",
                     "school_id": "school1",
                     "installments": [
-                        {"id": "inst5", "amount": 15000, "due_date": "2024-06-30", "paid_date": "2024-06-10", "status": "paid"},
-                        {"id": "inst6", "amount": 15000, "due_date": "2024-09-30", "paid_date": "2024-09-15", "status": "paid"},
-                        {"id": "inst7", "amount": 10000, "due_date": "2024-12-31", "paid_date": "2024-12-20", "status": "paid"},
-                        {"id": "inst8", "amount": 10000, "due_date": "2025-03-31", "paid_date": "2025-03-15", "status": "paid"}
+                        { "id": "inst5", "amount": 15000, "due_date": "2024-06-30", "paid_date": "2024-06-10", "status": "paid" },
+                        { "id": "inst6", "amount": 15000, "due_date": "2024-09-30", "paid_date": "2024-09-15", "status": "paid" },
+                        { "id": "inst7", "amount": 10000, "due_date": "2024-12-31", "paid_date": "2024-12-20", "status": "paid" },
+                        { "id": "inst8", "amount": 10000, "due_date": "2025-03-31", "paid_date": "2025-03-15", "status": "paid" }
                     ]
                 }
             ]
         },
         "school2": {
             "students": [
-                {"id": "student4", "name": "David Wilson", "class": "8", "section": "A", "photo_url": "", "parent_id": "parent3", "school_id": "school2"},
-                {"id": "student5", "name": "Emma Davis", "class": "9", "section": "B", "photo_url": "", "parent_id": "parent4", "school_id": "school2"}
+                { "id": "student4", "name": "David Wilson", "class": "8", "section": "A", "photo_url": "", "parent_id": "parent3", "school_id": "school2" },
+                { "id": "student5", "name": "Emma Davis", "class": "9", "section": "B", "photo_url": "", "parent_id": "parent4", "school_id": "school2" }
             ],
             "teachers": [
-                {"id": "teacher3", "name": "Sarah Teacher", "class": "8", "section": "A", "phone": "1112223333", "photo_url": "", "school_id": "school2"},
-                {"id": "teacher4", "name": "Mike Teacher", "class": "9", "section": "B", "phone": "4445556666", "photo_url": "", "school_id": "school2"}
+                { "id": "teacher3", "name": "Sarah Teacher", "class": "8", "section": "A", "phone": "1112223333", "photo_url": "", "school_id": "school2" },
+                { "id": "teacher4", "name": "Mike Teacher", "class": "9", "section": "B", "phone": "4445556666", "photo_url": "", "school_id": "school2" }
             ],
             "parents": [
-                {"id": "parent3", "father_name": "Tom Wilson", "mother_name": "Lisa Wilson", "children_ids": ["student4"], "phone": "7778889999", "school_id": "school2"},
-                {"id": "parent4", "father_name": "James Davis", "mother_name": "Anna Davis", "children_ids": ["student5"], "phone": "0001112222", "school_id": "school2"}
+                { "id": "parent3", "father_name": "Tom Wilson", "mother_name": "Lisa Wilson", "children_ids": ["student4"], "phone": "7778889999", "school_id": "school2" },
+                { "id": "parent4", "father_name": "James Davis", "mother_name": "Anna Davis", "children_ids": ["student5"], "phone": "0001112222", "school_id": "school2" }
             ],
             "attendance": [
-                {"id": "att3", "student_id": "student4", "date": "2024-01-15", "morning": True, "afternoon": False, "captured_images": {"morning": "", "afternoon": ""}, "school_id": "school2"},
-                {"id": "att4", "student_id": "student5", "date": "2024-01-15", "morning": False, "afternoon": True, "captured_images": {"morning": "", "afternoon": ""}, "school_id": "school2"}
+                { "id": "att3", "student_id": "student4", "date": "2024-01-15", "morning": True, "afternoon": False, "captured_images": { "morning": "", "afternoon": "" }, "school_id": "school2" },
+                { "id": "att4", "student_id": "student5", "date": "2024-01-15", "morning": False, "afternoon": True, "captured_images": { "morning": "", "afternoon": "" }, "school_id": "school2" }
             ],
             "exam_results": [
-                {"id": "exam3", "student_id": "student4", "exam_type": "quarterly", "scores": {"math": 85, "english": 90, "science": 82}, "date": "2024-01-10", "school_id": "school2"},
-                {"id": "exam4", "student_id": "student5", "exam_type": "quarterly", "scores": {"math": 92, "english": 88, "science": 95}, "date": "2024-01-10", "school_id": "school2"}
+                { "id": "exam3", "student_id": "student4", "exam_type": "quarterly", "scores": { "math": 85, "english": 90, "science": 82 }, "date": "2024-01-10", "school_id": "school2" },
+                { "id": "exam4", "student_id": "student5", "exam_type": "quarterly", "scores": { "math": 92, "english": 88, "science": 95 }, "date": "2024-01-10", "school_id": "school2" }
             ],
             "queries": [
-                {"id": "query2", "parent_id": "parent3", "student_id": "student4", "message": "How is my child performing in class?", "status": "pending", "date": "2024-01-14", "school_id": "school2"}
+                { "id": "query2", "parent_id": "parent3", "student_id": "student4", "message": "How is my child performing in class?", "status": "pending", "date": "2024-01-14", "school_id": "school2" }
             ],
             "fees": [
                 {
@@ -158,9 +166,9 @@ mock_data = {
                     "status": "unpaid",
                     "school_id": "school2",
                     "installments": [
-                        {"id": "inst9", "amount": 15000, "due_date": "2024-06-30", "paid_date": None, "status": "pending"},
-                        {"id": "inst10", "amount": 15000, "due_date": "2024-09-30", "paid_date": None, "status": "pending"},
-                        {"id": "inst11", "amount": 15000, "due_date": "2024-12-31", "paid_date": None, "status": "pending"}
+                        { "id": "inst9", "amount": 15000, "due_date": "2024-06-30", "paid_date": None, "status": "pending" },
+                        { "id": "inst10", "amount": 15000, "due_date": "2024-09-30", "paid_date": None, "status": "pending" },
+                        { "id": "inst11", "amount": 15000, "due_date": "2024-12-31", "paid_date": None, "status": "pending" }
                     ]
                 }
             ]
@@ -186,6 +194,11 @@ class StudentCreate(BaseModel):
     class_name: str
     section: str
     parent_id: str
+    photo_url: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
+    date_of_birth: Optional[str] = ""
 
 class TeacherCreate(BaseModel):
     name: str
@@ -246,18 +259,66 @@ class PaymentRecord(BaseModel):
     payment_method: str
     receipt_number: Optional[str] = None
 
-# Multi-tenant middleware
+# Helper functions
 def get_tenant_id(school_domain: str = Header(..., alias="X-School-Domain")):
     # In production, this would validate against a database
-    school = next((s for s in mock_data["schools"] if s["domain"] == school_domain), None)
-    if not school:
-        raise HTTPException(status_code=404, detail="School not found")
-    return school["id"]
+    if school_domain == "stmarys":
+        return "school1"
+    elif school_domain == "brightfuture":
+        return "school2"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid school domain")
 
-# Authentication
+def save_uploaded_image(file: UploadFile, student_id: str) -> str:
+    """Save uploaded image file and return the URL"""
+    try:
+        # Generate filename with proper extension
+        file_extension = file.filename.split('.')[-1] if file.filename else 'jpg'
+        filename = f"student_{student_id}.{file_extension}"
+        filepath = f"uploads/student_photos/{filename}"
+
+        # Save the uploaded file
+        with open(filepath, "wb") as f:
+            content = file.file.read()
+            f.write(content)
+        
+        # Reset file position for potential future reads
+        file.file.seek(0)
+
+        # Return the URL
+        return f"/uploads/student_photos/{filename}"
+    except Exception as e:
+        print(f"Error saving uploaded image: {e}")
+        return ""
+
+def save_base64_image(base64_data: str, student_id: str) -> str:
+    """Save base64 image to file and return the URL"""
+    try:
+        # Remove data URL prefix if present
+        if base64_data.startswith('data:image/'):
+            # Extract the base64 part after the comma
+            base64_data = base64_data.split(',')[1]
+
+        # Decode base64 data
+        image_data = base64.b64decode(base64_data)
+
+        # Generate filename
+        filename = f"student_{student_id}.jpg"
+        filepath = f"uploads/student_photos/{filename}"
+
+        # Save the image
+        with open(filepath, "wb") as f:
+            f.write(image_data)
+
+        # Return the URL
+        return f"/uploads/student_photos/{filename}"
+    except Exception as e:
+        print(f"Error saving image: {e}")
+        return ""
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     # Mock token verification - replace with real JWT verification
-    if credentials.credentials != "mock-jwt-token":
+    if not credentials.credentials:
         raise HTTPException(status_code=401, detail="Invalid token")
     return credentials.credentials
 
@@ -268,7 +329,7 @@ async def login(request: LoginRequest):
     school = next((s for s in mock_data["schools"] if s["domain"] == request.school_domain), None)
     if not school:
         raise HTTPException(status_code=404, detail="School not found")
-    
+
     # Mock authentication with school-specific users
     mock_users = {
         "school1": {
@@ -282,10 +343,10 @@ async def login(request: LoginRequest):
             "parent@brightfuture.edu": {"id": "6", "name": "Parent User", "role": "parent", "children": ["student4"], "password": "parent123", "school_id": "school2"}
         }
     }
-    
+
     school_users = mock_users.get(school["id"], {})
     user = school_users.get(request.email)
-    
+
     if user and user["password"] == request.password:
         return {
             "success": True,
@@ -293,7 +354,7 @@ async def login(request: LoginRequest):
             "school": {k: v for k, v in school.items() if k != "id"},
             "token": "mock-jwt-token"
         }
-    
+
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.get("/api/schools")
@@ -316,19 +377,52 @@ async def get_students(
 
 @app.post("/api/students")
 async def create_student(
-    student: StudentCreate, 
+    name: str = Form(...),
+    class_name: str = Form(...),
+    section: str = Form(...),
+    parent_id: str = Form(...),
+    photo_url: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    date_of_birth: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
     token: str = Depends(verify_token),
     tenant_id: str = Depends(get_tenant_id)
 ):
+    print(f"Creating student with name={name}, class_name={class_name}, section={section}, parent_id={parent_id}")
+    print(f"File received: {file.filename if file else 'None'}")
+
+    # Generate unique student ID using timestamp
+    import time
+    student_id = f"student{int(time.time() * 1000)}"
+
+    # Process photo if provided
+    final_photo_url = ""
+    if file:
+        final_photo_url = save_uploaded_image(file, student_id)
+        print(f"Saved uploaded image to: {final_photo_url}")
+    elif photo_url: # If photo_url was passed directly (e.g., for existing students)
+        final_photo_url = save_base64_image(photo_url, student_id)
+        print(f"Saved base64 image to: {final_photo_url}")
+
     new_student = {
-        "id": f"student{len(mock_data['tenants'][tenant_id]['students']) + 1}",
-        "name": student.name,
-        "class": student.class_name,
-        "section": student.section,
-        "photo_url": "",
-        "parent_id": student.parent_id,
+        "id": student_id,
+        "name": name,
+        "class": class_name,
+        "section": section,
+        "photo_url": final_photo_url,  # Now contains the file URL
+        "email": email or "",
+        "phone": phone or "",
+        "address": address or "",
+        "date_of_birth": date_of_birth or "",
+        "parent_id": parent_id,
         "school_id": tenant_id
     }
+
+    print(f"Created student with photo_url: {new_student['photo_url']}")
+    print(f"Complete new student data: {new_student}")
+
     mock_data["tenants"][tenant_id]["students"].append(new_student)
     return new_student
 
@@ -345,8 +439,11 @@ async def create_teacher(
     token: str = Depends(verify_token),
     tenant_id: str = Depends(get_tenant_id)
 ):
+    import time
+    teacher_id = f"teacher{int(time.time() * 1000)}"
+
     new_teacher = {
-        "id": f"teacher{len(mock_data['tenants'][tenant_id]['teachers']) + 1}",
+        "id": teacher_id,
         "name": teacher.name,
         "class": teacher.class_name,
         "section": teacher.section,
@@ -370,8 +467,11 @@ async def create_parent(
     token: str = Depends(verify_token),
     tenant_id: str = Depends(get_tenant_id)
 ):
+    import time
+    parent_id = f"parent{int(time.time() * 1000)}"
+
     new_parent = {
-        "id": f"parent{len(mock_data['tenants'][tenant_id]['parents']) + 1}",
+        "id": parent_id,
         "father_name": parent.father_name,
         "mother_name": parent.mother_name,
         "father_phone": parent.father_phone,
@@ -397,18 +497,18 @@ async def get_attendance(
     tenant_id: str = Depends(get_tenant_id)
 ):
     attendance = mock_data["tenants"][tenant_id]["attendance"]
-    
+
     if student_id:
         attendance = [a for a in attendance if a["student_id"] == student_id]
-    
+
     if class_name and section:
         # Get students in the class
         class_students = [s["id"] for s in mock_data["tenants"][tenant_id]["students"] if s["class"] == class_name and s["section"] == section]
         attendance = [a for a in attendance if a["student_id"] in class_students]
-    
+
     if date:
         attendance = [a for a in attendance if a["date"] == date]
-    
+
     return attendance
 
 @app.post("/api/attendance")
@@ -427,7 +527,7 @@ async def create_attendance(
 
 @app.get("/api/exam-results")
 async def get_exam_results(
-    student_id: Optional[str] = None, 
+    student_id: Optional[str] = None,
     token: str = Depends(verify_token),
     tenant_id: str = Depends(get_tenant_id)
 ):
@@ -452,7 +552,7 @@ async def create_exam_result(
 
 @app.get("/api/queries")
 async def get_queries(
-    student_id: Optional[str] = None, 
+    student_id: Optional[str] = None,
     token: str = Depends(verify_token),
     tenant_id: str = Depends(get_tenant_id)
 ):
@@ -531,13 +631,13 @@ async def update_fee(
     fee_index = next((i for i, f in enumerate(mock_data["tenants"][tenant_id]["fees"]) if f["id"] == fee_id), None)
     if fee_index is None:
         raise HTTPException(status_code=404, detail="Fee record not found")
-    
+
     fee = mock_data["tenants"][tenant_id]["fees"][fee_index]
     update_data = fee_update.dict(exclude_unset=True)
-    
+
     for key, value in update_data.items():
         fee[key] = value
-    
+
     return fee
 
 @app.post("/api/fees/{fee_id}/installments")
@@ -550,7 +650,7 @@ async def add_installment(
     fee_index = next((i for i, f in enumerate(mock_data["tenants"][tenant_id]["fees"]) if f["id"] == fee_id), None)
     if fee_index is None:
         raise HTTPException(status_code=404, detail="Fee record not found")
-    
+
     fee = mock_data["tenants"][tenant_id]["fees"][fee_index]
     new_installment = {
         "id": f"inst{len(fee['installments']) + 1}",
@@ -559,13 +659,13 @@ async def add_installment(
         "paid_date": None,
         "status": "pending"
     }
-    
+
     fee["installments"].append(new_installment)
-    
+
     # Recalculate total amount
     fee["total_amount"] = sum(inst["amount"] for inst in fee["installments"])
     fee["remaining_amount"] = fee["total_amount"] - fee["paid_amount"]
-    
+
     return fee
 
 @app.post("/api/fees/{fee_id}/installments/{installment_id}/pay")
@@ -579,28 +679,28 @@ async def record_payment(
     fee_index = next((i for i, f in enumerate(mock_data["tenants"][tenant_id]["fees"]) if f["id"] == fee_id), None)
     if fee_index is None:
         raise HTTPException(status_code=404, detail="Fee record not found")
-    
+
     fee = mock_data["tenants"][tenant_id]["fees"][fee_index]
     installment_index = next((i for i, inst in enumerate(fee["installments"]) if inst["id"] == installment_id), None)
     if installment_index is None:
         raise HTTPException(status_code=404, detail="Installment not found")
-    
+
     installment = fee["installments"][installment_index]
     installment["paid_date"] = payment.paid_date
     installment["status"] = "paid"
-    
+
     # Recalculate fee totals
     total_paid = sum(inst["amount"] for inst in fee["installments"] if inst["status"] == "paid")
     fee["paid_amount"] = total_paid
     fee["remaining_amount"] = fee["total_amount"] - total_paid
-    
+
     if total_paid == fee["total_amount"]:
         fee["status"] = "paid"
     elif total_paid > 0:
         fee["status"] = "partial"
     else:
         fee["status"] = "unpaid"
-    
+
     return fee
 
 @app.get("/")
